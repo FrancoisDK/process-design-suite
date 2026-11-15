@@ -43,6 +43,7 @@ type DisplayUnit = 'mm' | 'in'
 type DecimalPlaces = 2 | 3 | 4
 type PressureUnit = 'kPa' | 'bar' | 'psia'
 type PressureProfileId = 'sea-level' | '500m' | '1000m' | '1500m' | '2000m' | 'custom'
+type HydraulicsModel = 'liquid' | 'gas-low-dp' | 'gas-high-dp'
 
 const ALL_FILTER_OPTION = 'All'
 const INCH_TO_MM = 25.4
@@ -106,6 +107,46 @@ function App() {
   const [healthError, setHealthError] = useState<string | null>(null)
   const [catalogError, setCatalogError] = useState<string | null>(null)
   const [settingsSyncError, setSettingsSyncError] = useState<string | null>(null)
+  const [hydraulicsModel, setHydraulicsModel] = useState<HydraulicsModel>('liquid')
+  const [isHydraulicsLoading, setIsHydraulicsLoading] = useState(false)
+  const [hydraulicsError, setHydraulicsError] = useState<string | null>(null)
+  const [hydraulicsResult, setHydraulicsResult] = useState<Record<string, unknown> | null>(null)
+  const [hydraulicsWarnings, setHydraulicsWarnings] = useState<string[]>([])
+  const [liquidInputs, setLiquidInputs] = useState({
+    volumetric_flow_m3_s: '0.01',
+    inside_diameter_m: '0.0525',
+    pipe_length_m: '120',
+    fluid_density_kg_m3: '998',
+    dynamic_viscosity_pa_s: '0.001',
+    absolute_roughness_m: '0.000045',
+    elevation_change_m: '0',
+    inlet_pressure_pa: '300000',
+  })
+  const [gasLowDpInputs, setGasLowDpInputs] = useState({
+    mass_flow_kg_s: '0.8',
+    inside_diameter_m: '0.1',
+    pipe_length_m: '100',
+    inlet_pressure_pa: '500000',
+    gas_temperature_k: '300',
+    molecular_weight_kg_kmol: '18',
+    compressibility_factor: '0.98',
+    heat_capacity_ratio: '1.33',
+    dynamic_viscosity_pa_s: '0.000012',
+    absolute_roughness_m: '0.000045',
+  })
+  const [gasHighDpInputs, setGasHighDpInputs] = useState({
+    mass_flow_kg_s: '1.2',
+    inside_diameter_m: '0.08',
+    pipe_length_m: '150',
+    upstream_pressure_pa: '900000',
+    downstream_pressure_pa: '350000',
+    gas_temperature_k: '310',
+    molecular_weight_kg_kmol: '20',
+    compressibility_factor: '0.95',
+    heat_capacity_ratio: '1.31',
+    dynamic_viscosity_pa_s: '0.000015',
+    absolute_roughness_m: '0.000045',
+  })
 
   useEffect(() => {
     const controller = new AbortController()
@@ -504,6 +545,110 @@ function App() {
   }
   const atmosphericPressureDisplay = formatPressure(atmosphericPressureKpa)
   const activePressureProfile = PRESSURE_PROFILES.find((profile) => profile.id === pressureProfileId) ?? PRESSURE_PROFILES[0]
+  const updateLiquidInput = (field: keyof typeof liquidInputs, value: string) => {
+    setLiquidInputs((current) => ({ ...current, [field]: value }))
+  }
+  const updateGasLowDpInput = (field: keyof typeof gasLowDpInputs, value: string) => {
+    setGasLowDpInputs((current) => ({ ...current, [field]: value }))
+  }
+  const updateGasHighDpInput = (field: keyof typeof gasHighDpInputs, value: string) => {
+    setGasHighDpInputs((current) => ({ ...current, [field]: value }))
+  }
+
+  const submitHydraulicsCalculation = async () => {
+    setIsHydraulicsLoading(true)
+    setHydraulicsError(null)
+    try {
+      let endpoint = '/api/v1/hydraulics/liquid-pipe'
+      let payload: Record<string, unknown> = {}
+
+      if (hydraulicsModel === 'liquid') {
+        payload = {
+          volumetric_flow_m3_s: Number(liquidInputs.volumetric_flow_m3_s),
+          inside_diameter_m: Number(liquidInputs.inside_diameter_m),
+          pipe_length_m: Number(liquidInputs.pipe_length_m),
+          fluid_density_kg_m3: Number(liquidInputs.fluid_density_kg_m3),
+          dynamic_viscosity_pa_s: Number(liquidInputs.dynamic_viscosity_pa_s),
+          absolute_roughness_m: Number(liquidInputs.absolute_roughness_m),
+          elevation_change_m: Number(liquidInputs.elevation_change_m),
+          inlet_pressure_pa: Number(liquidInputs.inlet_pressure_pa),
+          include_fittings: false,
+          fittings_method: 'none',
+          fittings_k_total: 0,
+        }
+      } else if (hydraulicsModel === 'gas-low-dp') {
+        endpoint = '/api/v1/hydraulics/gas-pipe/low-dp'
+        payload = {
+          mass_flow_kg_s: Number(gasLowDpInputs.mass_flow_kg_s),
+          inside_diameter_m: Number(gasLowDpInputs.inside_diameter_m),
+          pipe_length_m: Number(gasLowDpInputs.pipe_length_m),
+          inlet_pressure_pa: Number(gasLowDpInputs.inlet_pressure_pa),
+          gas_temperature_k: Number(gasLowDpInputs.gas_temperature_k),
+          molecular_weight_kg_kmol: Number(gasLowDpInputs.molecular_weight_kg_kmol),
+          compressibility_factor: Number(gasLowDpInputs.compressibility_factor),
+          heat_capacity_ratio: Number(gasLowDpInputs.heat_capacity_ratio),
+          dynamic_viscosity_pa_s: Number(gasLowDpInputs.dynamic_viscosity_pa_s),
+          absolute_roughness_m: Number(gasLowDpInputs.absolute_roughness_m),
+          include_fittings: false,
+          fittings_method: 'none',
+          fittings_k_total: 0,
+        }
+      } else {
+        endpoint = '/api/v1/hydraulics/gas-pipe/high-dp'
+        payload = {
+          mass_flow_kg_s: Number(gasHighDpInputs.mass_flow_kg_s),
+          inside_diameter_m: Number(gasHighDpInputs.inside_diameter_m),
+          pipe_length_m: Number(gasHighDpInputs.pipe_length_m),
+          upstream_pressure_pa: Number(gasHighDpInputs.upstream_pressure_pa),
+          downstream_pressure_pa: Number(gasHighDpInputs.downstream_pressure_pa),
+          gas_temperature_k: Number(gasHighDpInputs.gas_temperature_k),
+          molecular_weight_kg_kmol: Number(gasHighDpInputs.molecular_weight_kg_kmol),
+          compressibility_factor: Number(gasHighDpInputs.compressibility_factor),
+          heat_capacity_ratio: Number(gasHighDpInputs.heat_capacity_ratio),
+          dynamic_viscosity_pa_s: Number(gasHighDpInputs.dynamic_viscosity_pa_s),
+          absolute_roughness_m: Number(gasHighDpInputs.absolute_roughness_m),
+          include_fittings: false,
+          fittings_method: 'none',
+          fittings_k_total: 0,
+        }
+      }
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const responsePayload = (await response.json()) as Record<string, unknown>
+      if (!response.ok) {
+        const detail = typeof responsePayload.detail === 'string' ? responsePayload.detail : `Request failed with ${response.status}`
+        throw new Error(detail)
+      }
+      setHydraulicsResult(responsePayload)
+      setHydraulicsWarnings(Array.isArray(responsePayload.warnings) ? responsePayload.warnings.filter((entry): entry is string => typeof entry === 'string') : [])
+    } catch (calculationError) {
+      if (calculationError instanceof Error) {
+        setHydraulicsError(calculationError.message)
+      } else {
+        setHydraulicsError('Hydraulics request failed.')
+      }
+      setHydraulicsResult(null)
+      setHydraulicsWarnings([])
+    } finally {
+      setIsHydraulicsLoading(false)
+    }
+  }
+  const formatHydraulicsValue = (value: unknown) => {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value.toLocaleString(undefined, { maximumFractionDigits: 6 }) : String(value)
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No'
+    }
+    return String(value)
+  }
+  const hydraulicsResultEntries = hydraulicsResult
+    ? Object.entries(hydraulicsResult).filter(([key, value]) => key !== 'warnings' && typeof value !== 'object')
+    : []
 
   const moduleCopy: Record<(typeof modules)[number], string> = {
     Overview:
@@ -515,7 +660,7 @@ function App() {
     Equipment:
       'Pipe, valve, vessel, and other equipment modules will be added in later phases.',
     Calculations:
-      'Calculation engine boundaries are established, but Phase 1 intentionally does not add engineering equations.',
+      'Hydraulics models are now available for liquid, gas low-ΔP, and gas high-ΔP workflows.',
     Reports:
       'Result-view and reporting layout placeholders are staged for later engineering outputs.',
     Settings:
@@ -701,6 +846,188 @@ function App() {
                   : `Active profile elevation reference: ${activePressureProfile.elevationM} m above sea level`}
               </p>
               {settingsSyncError ? <p className="settings-sync-error">{`Settings sync warning: ${settingsSyncError}`}</p> : null}
+            </Card.Content>
+          </Card>
+        ) : null}
+
+        {activeTab === 'Calculations' ? (
+          <Card className="hydraulics-card">
+            <Card.Header>
+              <h3>Hydraulics workspace</h3>
+            </Card.Header>
+            <div className="card-divider" />
+            <Card.Content>
+              <div className="settings-grid">
+                <label className="field">
+                  <span>Calculation model</span>
+                  <select value={hydraulicsModel} onChange={(event) => setHydraulicsModel(event.target.value as HydraulicsModel)}>
+                    <option value="liquid">Liquid pipe (incompressible)</option>
+                    <option value="gas-low-dp">Gas pipe (low-ΔP)</option>
+                    <option value="gas-high-dp">Gas pipe (high-ΔP / high-Mach)</option>
+                  </select>
+                </label>
+              </div>
+
+              {hydraulicsModel === 'liquid' ? (
+                <div className="hydraulics-grid">
+                  <label className="field">
+                    <span>Flow rate (m³/s)</span>
+                    <input className="field-input" type="number" step="0.0001" value={liquidInputs.volumetric_flow_m3_s} onChange={(event) => updateLiquidInput('volumetric_flow_m3_s', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Inside diameter (m)</span>
+                    <input className="field-input" type="number" step="0.0001" value={liquidInputs.inside_diameter_m} onChange={(event) => updateLiquidInput('inside_diameter_m', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Pipe length (m)</span>
+                    <input className="field-input" type="number" step="0.1" value={liquidInputs.pipe_length_m} onChange={(event) => updateLiquidInput('pipe_length_m', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Density (kg/m³)</span>
+                    <input className="field-input" type="number" step="0.1" value={liquidInputs.fluid_density_kg_m3} onChange={(event) => updateLiquidInput('fluid_density_kg_m3', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Viscosity (Pa·s)</span>
+                    <input className="field-input" type="number" step="0.000001" value={liquidInputs.dynamic_viscosity_pa_s} onChange={(event) => updateLiquidInput('dynamic_viscosity_pa_s', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Absolute roughness (m)</span>
+                    <input className="field-input" type="number" step="0.000001" value={liquidInputs.absolute_roughness_m} onChange={(event) => updateLiquidInput('absolute_roughness_m', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Elevation change (m)</span>
+                    <input className="field-input" type="number" step="0.1" value={liquidInputs.elevation_change_m} onChange={(event) => updateLiquidInput('elevation_change_m', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Inlet pressure (Pa abs)</span>
+                    <input className="field-input" type="number" step="1" value={liquidInputs.inlet_pressure_pa} onChange={(event) => updateLiquidInput('inlet_pressure_pa', event.target.value)} />
+                  </label>
+                </div>
+              ) : null}
+
+              {hydraulicsModel === 'gas-low-dp' ? (
+                <div className="hydraulics-grid">
+                  <label className="field">
+                    <span>Mass flow (kg/s)</span>
+                    <input className="field-input" type="number" step="0.001" value={gasLowDpInputs.mass_flow_kg_s} onChange={(event) => updateGasLowDpInput('mass_flow_kg_s', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Inside diameter (m)</span>
+                    <input className="field-input" type="number" step="0.0001" value={gasLowDpInputs.inside_diameter_m} onChange={(event) => updateGasLowDpInput('inside_diameter_m', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Pipe length (m)</span>
+                    <input className="field-input" type="number" step="0.1" value={gasLowDpInputs.pipe_length_m} onChange={(event) => updateGasLowDpInput('pipe_length_m', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Inlet pressure (Pa abs)</span>
+                    <input className="field-input" type="number" step="1" value={gasLowDpInputs.inlet_pressure_pa} onChange={(event) => updateGasLowDpInput('inlet_pressure_pa', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Temperature (K)</span>
+                    <input className="field-input" type="number" step="0.1" value={gasLowDpInputs.gas_temperature_k} onChange={(event) => updateGasLowDpInput('gas_temperature_k', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Molecular weight (kg/kmol)</span>
+                    <input className="field-input" type="number" step="0.01" value={gasLowDpInputs.molecular_weight_kg_kmol} onChange={(event) => updateGasLowDpInput('molecular_weight_kg_kmol', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Compressibility factor (Z)</span>
+                    <input className="field-input" type="number" step="0.001" value={gasLowDpInputs.compressibility_factor} onChange={(event) => updateGasLowDpInput('compressibility_factor', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Heat capacity ratio (γ)</span>
+                    <input className="field-input" type="number" step="0.01" value={gasLowDpInputs.heat_capacity_ratio} onChange={(event) => updateGasLowDpInput('heat_capacity_ratio', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Viscosity (Pa·s)</span>
+                    <input className="field-input" type="number" step="0.000001" value={gasLowDpInputs.dynamic_viscosity_pa_s} onChange={(event) => updateGasLowDpInput('dynamic_viscosity_pa_s', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Absolute roughness (m)</span>
+                    <input className="field-input" type="number" step="0.000001" value={gasLowDpInputs.absolute_roughness_m} onChange={(event) => updateGasLowDpInput('absolute_roughness_m', event.target.value)} />
+                  </label>
+                </div>
+              ) : null}
+
+              {hydraulicsModel === 'gas-high-dp' ? (
+                <div className="hydraulics-grid">
+                  <label className="field">
+                    <span>Mass flow (kg/s)</span>
+                    <input className="field-input" type="number" step="0.001" value={gasHighDpInputs.mass_flow_kg_s} onChange={(event) => updateGasHighDpInput('mass_flow_kg_s', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Inside diameter (m)</span>
+                    <input className="field-input" type="number" step="0.0001" value={gasHighDpInputs.inside_diameter_m} onChange={(event) => updateGasHighDpInput('inside_diameter_m', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Pipe length (m)</span>
+                    <input className="field-input" type="number" step="0.1" value={gasHighDpInputs.pipe_length_m} onChange={(event) => updateGasHighDpInput('pipe_length_m', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Upstream pressure (Pa abs)</span>
+                    <input className="field-input" type="number" step="1" value={gasHighDpInputs.upstream_pressure_pa} onChange={(event) => updateGasHighDpInput('upstream_pressure_pa', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Downstream pressure (Pa abs)</span>
+                    <input className="field-input" type="number" step="1" value={gasHighDpInputs.downstream_pressure_pa} onChange={(event) => updateGasHighDpInput('downstream_pressure_pa', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Temperature (K)</span>
+                    <input className="field-input" type="number" step="0.1" value={gasHighDpInputs.gas_temperature_k} onChange={(event) => updateGasHighDpInput('gas_temperature_k', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Molecular weight (kg/kmol)</span>
+                    <input className="field-input" type="number" step="0.01" value={gasHighDpInputs.molecular_weight_kg_kmol} onChange={(event) => updateGasHighDpInput('molecular_weight_kg_kmol', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Compressibility factor (Z)</span>
+                    <input className="field-input" type="number" step="0.001" value={gasHighDpInputs.compressibility_factor} onChange={(event) => updateGasHighDpInput('compressibility_factor', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Heat capacity ratio (γ)</span>
+                    <input className="field-input" type="number" step="0.01" value={gasHighDpInputs.heat_capacity_ratio} onChange={(event) => updateGasHighDpInput('heat_capacity_ratio', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Viscosity (Pa·s)</span>
+                    <input className="field-input" type="number" step="0.000001" value={gasHighDpInputs.dynamic_viscosity_pa_s} onChange={(event) => updateGasHighDpInput('dynamic_viscosity_pa_s', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Absolute roughness (m)</span>
+                    <input className="field-input" type="number" step="0.000001" value={gasHighDpInputs.absolute_roughness_m} onChange={(event) => updateGasHighDpInput('absolute_roughness_m', event.target.value)} />
+                  </label>
+                </div>
+              ) : null}
+
+              <div className="hydraulics-actions">
+                <Button variant="primary" onPress={submitHydraulicsCalculation} isDisabled={isHydraulicsLoading}>
+                  {isHydraulicsLoading ? 'Running...' : 'Run calculation'}
+                </Button>
+              </div>
+
+              {hydraulicsError ? <p className="error-text">{hydraulicsError}</p> : null}
+
+              {hydraulicsWarnings.length > 0 ? (
+                <div className="hydraulics-warnings">
+                  <h4>Warnings</h4>
+                  <ul>
+                    {hydraulicsWarnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {hydraulicsResultEntries.length > 0 ? (
+                <div className="hydraulics-result-grid">
+                  {hydraulicsResultEntries.map(([key, value]) => (
+                    <div key={key} className="hydraulics-result-item">
+                      <span>{key}</span>
+                      <strong>{formatHydraulicsValue(value)}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </Card.Content>
           </Card>
         ) : null}
