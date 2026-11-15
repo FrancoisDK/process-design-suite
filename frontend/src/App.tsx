@@ -916,19 +916,40 @@ function App() {
     }
     return String(value)
   }
+  const formatPressureFromPa = (pressurePa: number) => {
+    if (pressureUnit === 'kPa') {
+      return `${(pressurePa / 1000).toLocaleString(undefined, { maximumFractionDigits: 3 })} kPa`
+    }
+    if (pressureUnit === 'bar') {
+      return `${(pressurePa / 100000).toLocaleString(undefined, { maximumFractionDigits: 5 })} bar`
+    }
+    return `${(pressurePa / 6894.757293168361).toLocaleString(undefined, { maximumFractionDigits: 4 })} psia`
+  }
+  const formatHydraulicsResultValue = (key: string, value: unknown) => {
+    if (typeof value === 'number' && key.endsWith('_pressure_pa')) {
+      return formatPressureFromPa(value)
+    }
+    if (typeof value === 'number') {
+      return formatHydraulicsValue(value)
+    }
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No'
+    }
+    return String(value)
+  }
   const hydraulicsFieldMeta: Record<string, { label: string; unit?: string }> = {
     velocity_m_s: { label: 'Velocity', unit: 'm/s' },
     velocity_inlet_m_s: { label: 'Velocity (inlet)', unit: 'm/s' },
     velocity_outlet_m_s: { label: 'Velocity (outlet)', unit: 'm/s' },
     reynolds_number: { label: 'Reynolds number' },
     friction_factor: { label: 'Darcy friction factor' },
-    straight_pipe_pressure_drop_pa: { label: 'Straight-pipe pressure drop', unit: 'Pa' },
-    fittings_pressure_drop_pa: { label: 'Fittings pressure drop', unit: 'Pa' },
-    total_pressure_drop_pa: { label: 'Total pressure drop', unit: 'Pa' },
-    total_predicted_pressure_drop_pa: { label: 'Total predicted pressure drop', unit: 'Pa' },
-    available_pressure_drop_pa: { label: 'Available pressure drop', unit: 'Pa' },
-    pressure_drop_margin_pa: { label: 'Pressure drop margin', unit: 'Pa' },
-    outlet_pressure_pa: { label: 'Outlet pressure', unit: 'Pa(abs)' },
+    straight_pipe_pressure_drop_pa: { label: 'Straight-pipe pressure drop' },
+    fittings_pressure_drop_pa: { label: 'Fittings pressure drop' },
+    total_pressure_drop_pa: { label: 'Total pressure drop' },
+    total_predicted_pressure_drop_pa: { label: 'Total predicted pressure drop' },
+    available_pressure_drop_pa: { label: 'Available pressure drop' },
+    pressure_drop_margin_pa: { label: 'Pressure drop margin' },
+    outlet_pressure_pa: { label: 'Outlet pressure' },
     inlet_density_kg_m3: { label: 'Inlet density', unit: 'kg/m³' },
     outlet_density_kg_m3: { label: 'Outlet density', unit: 'kg/m³' },
     mach_number: { label: 'Mach number' },
@@ -938,7 +959,7 @@ function App() {
     critical_pressure_ratio: { label: 'Critical pressure ratio' },
     choked_flow_expected: { label: 'Choked flow expected' },
     fittings_k_effective: { label: 'Effective fittings K' },
-    elevation_pressure_drop_pa: { label: 'Elevation pressure drop', unit: 'Pa' },
+    elevation_pressure_drop_pa: { label: 'Elevation pressure drop' },
   }
   const hydraulicsResultEntries = hydraulicsResult
     ? Object.entries(hydraulicsResult).filter(([key, value]) => key !== 'warnings' && typeof value !== 'object')
@@ -1414,10 +1435,7 @@ function App() {
                   {hydraulicsResultEntries.map(([key, value]) => (
                     <div key={key} className="hydraulics-result-item">
                       <span>{hydraulicsFieldMeta[key]?.label ?? key}</span>
-                      <strong>
-                        {formatHydraulicsValue(value)}
-                        {hydraulicsFieldMeta[key]?.unit && typeof value !== 'boolean' ? ` ${hydraulicsFieldMeta[key].unit}` : ''}
-                      </strong>
+                      <strong>{formatHydraulicsResultValue(key, value)}</strong>
                     </div>
                   ))}
                 </div>
