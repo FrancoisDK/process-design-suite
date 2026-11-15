@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Card, Chip } from '@heroui/react'
 import './App.css'
 
@@ -59,6 +59,13 @@ type HydraulicsCaseSummary = {
   created_at: string
 }
 type HydraulicsCaseDetail = HydraulicsCaseSummary & {
+  inputs: Record<string, unknown>
+  result: Record<string, unknown>
+  warnings: string[]
+}
+type ImportedHydraulicsCase = {
+  name: string
+  model: HydraulicsModel
   inputs: Record<string, unknown>
   result: Record<string, unknown>
   warnings: string[]
@@ -136,6 +143,7 @@ function App() {
   const [savedHydraulicsCases, setSavedHydraulicsCases] = useState<HydraulicsCaseSummary[]>([])
   const [isCasesLoading, setIsCasesLoading] = useState(false)
   const [casesError, setCasesError] = useState<string | null>(null)
+  const importCaseInputRef = useRef<HTMLInputElement | null>(null)
   const [includeFittings, setIncludeFittings] = useState(false)
   const [fittingsMethod, setFittingsMethod] = useState<FittingsMethod>('none')
   const [fittingsKTotal, setFittingsKTotal] = useState('2.5')
@@ -685,7 +693,8 @@ function App() {
         }),
       })
       if (!response.ok) {
-        throw new Error(`Case save failed with ${response.status}`)
+        const payload = (await response.json()) as Record<string, unknown>
+        throw new Error(extractApiErrorMessage(payload, `Case save failed with ${response.status}`))
       }
       await loadHydraulicsCases()
     } catch (caseError) {
@@ -700,7 +709,7 @@ function App() {
       const response = await fetch(`/api/v1/hydraulics/cases/${caseId}`)
       const payload = (await response.json()) as HydraulicsCaseDetail
       if (!response.ok) {
-        throw new Error(`Case load failed with ${response.status}`)
+        throw new Error(extractApiErrorMessage(payload as unknown as Record<string, unknown>, `Case load failed with ${response.status}`))
       }
       setHydraulicsModel(payload.model)
       setHydraulicsInputPayload(payload.inputs)
@@ -758,7 +767,88 @@ function App() {
     try {
       const response = await fetch(`/api/v1/hydraulics/cases/${caseId}`, { method: 'DELETE' })
       if (!response.ok) {
-        throw new Error(`Case delete failed with ${response.status}`)
+        const payload = (await response.json()) as Record<string, unknown>
+        throw new Error(extractApiErrorMessage(payload, `Case delete failed with ${response.status}`))
+      }
+      await loadHydraulicsCases()
+    } catch (caseError) {
+      if (caseError instanceof Error) {
+        setCasesError(caseError.message)
+      }
+    }
+  }
+  const exportHydraulicsCase = async (caseId: number) => {
+    setCasesError(null)
+    try {
+      const response = await fetch(`/api/v1/hydraulics/cases/${caseId}`)
+      const payload = (await response.json()) as HydraulicsCaseDetail
+      if (!response.ok) {
+        throw new Error(extractApiErrorMessage(payload as unknown as Record<string, unknown>, `Case export failed with ${response.status}`))
+      }
+      const exportPayload: ImportedHydraulicsCase = {
+        name: payload.name,
+        model: payload.model,
+        inputs: payload.inputs,
+        result: payload.result,
+        warnings: payload.warnings,
+      }
+      const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const slug = payload.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      link.href = url
+      link.download = `${slug || 'hydraulics-case'}-${payload.id}.json`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (caseError) {
+      if (caseError instanceof Error) {
+        setCasesError(caseError.message)
+      }
+    }
+  }
+  const parseImportedCase = (value: unknown): ImportedHydraulicsCase | null => {
+    if (typeof value !== 'object' || value === null) {
+      return null
+    }
+    const candidate = value as Record<string, unknown>
+    const model = candidate.model
+    if (
+      typeof candidate.name !== 'string' ||
+      (model !== 'liquid' && model !== 'gas-low-dp' && model !== 'gas-high-dp') ||
+      typeof candidate.inputs !== 'object' ||
+      candidate.inputs === null ||
+      typeof candidate.result !== 'object' ||
+      candidate.result === null
+    ) {
+      return null
+    }
+    const warnings = Array.isArray(candidate.warnings) ? candidate.warnings.filter((entry): entry is string => typeof entry === 'string') : []
+    return {
+      name: candidate.name,
+      model,
+      inputs: candidate.inputs as Record<string, unknown>,
+      result: candidate.result as Record<string, unknown>,
+      warnings,
+    }
+  }
+  const importHydraulicsCase = async (file: File) => {
+    setCasesError(null)
+    try {
+      const content = await file.text()
+      const parsed = parseImportedCase(JSON.parse(content))
+      if (!parsed) {
+        throw new Error('Imported file is not a valid hydraulics case JSON payload.')
+      }
+      const response = await fetch('/api/v1/hydraulics/cases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsed),
+      })
+      if (!response.ok) {
+        const payload = (await response.json()) as Record<string, unknown>
+        throw new Error(extractApiErrorMessage(payload, `Case import failed with ${response.status}`))
       }
       await loadHydraulicsCases()
     } catch (caseError) {
@@ -1384,6 +1474,22 @@ function App() {
                     <Button variant="outline" onPress={saveHydraulicsCase}>
                       Save current result
                     </Button>
+                    <Button variant="outline" onPress={() => importCaseInputRef.current?.click()}>
+                      Import JSON
+                    </Button>
+                    <input
+                      ref={importCaseInputRef}
+                      type="file"
+                      accept=".json,application/json"
+                      style={{ display: 'none' }}
+                      onChange={(event) => {
+                        const selectedFile = event.target.files?.[0]
+                        if (selectedFile) {
+                          void importHydraulicsCase(selectedFile)
+                        }
+                        event.currentTarget.value = ''
+                      }}
+                    />
                   </div>
                 </div>
                 {casesError ? <p className="error-text">{casesError}</p> : null}
@@ -1398,6 +1504,9 @@ function App() {
                         <div className="saved-case-actions">
                           <Button variant="outline" onPress={() => applyHydraulicsCase(caseEntry.id)}>
                             Load
+                          </Button>
+                          <Button variant="outline" onPress={() => exportHydraulicsCase(caseEntry.id)}>
+                            Export
                           </Button>
                           <Button variant="outline" onPress={() => deleteHydraulicsCase(caseEntry.id)}>
                             Delete
