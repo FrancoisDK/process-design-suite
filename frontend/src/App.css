@@ -164,6 +164,41 @@
   gap: 0.45rem;
 }
 
+.case-controls {
+  margin-top: 0.65rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.saved-cases-list {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.saved-case-row {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 0.55rem;
+  padding: 0.5rem 0.65rem;
+  background: #fff;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.saved-case-row p {
+  margin: 0.2rem 0 0;
+  color: #475569;
+  font-size: 0.82rem;
+}
+
+.saved-case-actions {
+  display: flex;
+  gap: 0.45rem;
+}
+
 .hydraulics-warnings {
   margin-top: 0.9rem;
   padding: 0.6rem 0.7rem;

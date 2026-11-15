@@ -52,6 +52,17 @@ type Fittings3KRow = {
   k_inf: string
   k_d: string
 }
+type HydraulicsCaseSummary = {
+  id: number
+  name: string
+  model: HydraulicsModel
+  created_at: string
+}
+type HydraulicsCaseDetail = HydraulicsCaseSummary & {
+  inputs: Record<string, unknown>
+  result: Record<string, unknown>
+  warnings: string[]
+}
 
 const ALL_FILTER_OPTION = 'All'
 const INCH_TO_MM = 25.4
@@ -120,6 +131,11 @@ function App() {
   const [hydraulicsError, setHydraulicsError] = useState<string | null>(null)
   const [hydraulicsResult, setHydraulicsResult] = useState<Record<string, unknown> | null>(null)
   const [hydraulicsWarnings, setHydraulicsWarnings] = useState<string[]>([])
+  const [hydraulicsInputPayload, setHydraulicsInputPayload] = useState<Record<string, unknown> | null>(null)
+  const [hydraulicsCaseName, setHydraulicsCaseName] = useState('New hydraulics case')
+  const [savedHydraulicsCases, setSavedHydraulicsCases] = useState<HydraulicsCaseSummary[]>([])
+  const [isCasesLoading, setIsCasesLoading] = useState(false)
+  const [casesError, setCasesError] = useState<string | null>(null)
   const [includeFittings, setIncludeFittings] = useState(false)
   const [fittingsMethod, setFittingsMethod] = useState<FittingsMethod>('none')
   const [fittingsKTotal, setFittingsKTotal] = useState('2.5')
@@ -619,6 +635,138 @@ function App() {
       })
     }
   }
+  async function loadHydraulicsCases() {
+    setIsCasesLoading(true)
+    setCasesError(null)
+    try {
+      const response = await fetch('/api/v1/hydraulics/cases')
+      const payload = (await response.json()) as unknown
+      if (!response.ok || !Array.isArray(payload)) {
+        throw new Error(`Cases request failed with ${response.status}`)
+      }
+      const normalized = payload
+        .filter((item): item is HydraulicsCaseSummary => {
+          if (typeof item !== 'object' || item === null) {
+            return false
+          }
+          const candidate = item as Record<string, unknown>
+          return (
+            typeof candidate.id === 'number' &&
+            typeof candidate.name === 'string' &&
+            (candidate.model === 'liquid' || candidate.model === 'gas-low-dp' || candidate.model === 'gas-high-dp') &&
+            typeof candidate.created_at === 'string'
+          )
+        })
+      setSavedHydraulicsCases(normalized)
+    } catch (caseError) {
+      if (caseError instanceof Error) {
+        setCasesError(caseError.message)
+      }
+    } finally {
+      setIsCasesLoading(false)
+    }
+  }
+  const saveHydraulicsCase = async () => {
+    if (!hydraulicsResult || !hydraulicsInputPayload) {
+      setCasesError('Run a hydraulics calculation before saving a case.')
+      return
+    }
+    setCasesError(null)
+    try {
+      const response = await fetch('/api/v1/hydraulics/cases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: hydraulicsCaseName.trim() || 'Hydraulics case',
+          model: hydraulicsModel,
+          inputs: hydraulicsInputPayload,
+          result: hydraulicsResult,
+          warnings: hydraulicsWarnings,
+        }),
+      })
+      if (!response.ok) {
+        throw new Error(`Case save failed with ${response.status}`)
+      }
+      await loadHydraulicsCases()
+    } catch (caseError) {
+      if (caseError instanceof Error) {
+        setCasesError(caseError.message)
+      }
+    }
+  }
+  const applyHydraulicsCase = async (caseId: number) => {
+    setCasesError(null)
+    try {
+      const response = await fetch(`/api/v1/hydraulics/cases/${caseId}`)
+      const payload = (await response.json()) as HydraulicsCaseDetail
+      if (!response.ok) {
+        throw new Error(`Case load failed with ${response.status}`)
+      }
+      setHydraulicsModel(payload.model)
+      setHydraulicsInputPayload(payload.inputs)
+      setHydraulicsResult(payload.result)
+      setHydraulicsWarnings(Array.isArray(payload.warnings) ? payload.warnings : [])
+
+      const toForm = (value: unknown) => (typeof value === 'number' ? String(value) : typeof value === 'string' ? value : '')
+      if (payload.model === 'liquid') {
+        setLiquidInputs({
+          volumetric_flow_m3_s: toForm(payload.inputs.volumetric_flow_m3_s),
+          inside_diameter_m: toForm(payload.inputs.inside_diameter_m),
+          pipe_length_m: toForm(payload.inputs.pipe_length_m),
+          fluid_density_kg_m3: toForm(payload.inputs.fluid_density_kg_m3),
+          dynamic_viscosity_pa_s: toForm(payload.inputs.dynamic_viscosity_pa_s),
+          absolute_roughness_m: toForm(payload.inputs.absolute_roughness_m),
+          elevation_change_m: toForm(payload.inputs.elevation_change_m),
+          inlet_pressure_pa: toForm(payload.inputs.inlet_pressure_pa),
+        })
+      } else if (payload.model === 'gas-low-dp') {
+        setGasLowDpInputs({
+          mass_flow_kg_s: toForm(payload.inputs.mass_flow_kg_s),
+          inside_diameter_m: toForm(payload.inputs.inside_diameter_m),
+          pipe_length_m: toForm(payload.inputs.pipe_length_m),
+          inlet_pressure_pa: toForm(payload.inputs.inlet_pressure_pa),
+          gas_temperature_k: toForm(payload.inputs.gas_temperature_k),
+          molecular_weight_kg_kmol: toForm(payload.inputs.molecular_weight_kg_kmol),
+          compressibility_factor: toForm(payload.inputs.compressibility_factor),
+          heat_capacity_ratio: toForm(payload.inputs.heat_capacity_ratio),
+          dynamic_viscosity_pa_s: toForm(payload.inputs.dynamic_viscosity_pa_s),
+          absolute_roughness_m: toForm(payload.inputs.absolute_roughness_m),
+        })
+      } else {
+        setGasHighDpInputs({
+          mass_flow_kg_s: toForm(payload.inputs.mass_flow_kg_s),
+          inside_diameter_m: toForm(payload.inputs.inside_diameter_m),
+          pipe_length_m: toForm(payload.inputs.pipe_length_m),
+          upstream_pressure_pa: toForm(payload.inputs.upstream_pressure_pa),
+          downstream_pressure_pa: toForm(payload.inputs.downstream_pressure_pa),
+          gas_temperature_k: toForm(payload.inputs.gas_temperature_k),
+          molecular_weight_kg_kmol: toForm(payload.inputs.molecular_weight_kg_kmol),
+          compressibility_factor: toForm(payload.inputs.compressibility_factor),
+          heat_capacity_ratio: toForm(payload.inputs.heat_capacity_ratio),
+          dynamic_viscosity_pa_s: toForm(payload.inputs.dynamic_viscosity_pa_s),
+          absolute_roughness_m: toForm(payload.inputs.absolute_roughness_m),
+        })
+      }
+    } catch (caseError) {
+      if (caseError instanceof Error) {
+        setCasesError(caseError.message)
+      }
+    }
+  }
+  const deleteHydraulicsCase = async (caseId: number) => {
+    setCasesError(null)
+    try {
+      const response = await fetch(`/api/v1/hydraulics/cases/${caseId}`, { method: 'DELETE' })
+      if (!response.ok) {
+        throw new Error(`Case delete failed with ${response.status}`)
+      }
+      await loadHydraulicsCases()
+    } catch (caseError) {
+      if (caseError instanceof Error) {
+        setCasesError(caseError.message)
+      }
+    }
+  }
 
   const submitHydraulicsCalculation = async () => {
     setIsHydraulicsLoading(true)
@@ -686,6 +834,7 @@ function App() {
           ...commonFittingsPayload,
         }
       }
+      setHydraulicsInputPayload(payload)
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -779,7 +928,12 @@ function App() {
               key={module}
               className={`nav-button ${activeTab === module ? 'active' : ''}`}
               variant={activeTab === module ? 'primary' : 'outline'}
-              onPress={() => setActiveTab(module)}
+              onPress={() => {
+                setActiveTab(module)
+                if (module === 'Calculations') {
+                  void loadHydraulicsCases()
+                }
+              }}
             >
               {module}
             </Button>
@@ -1141,6 +1295,52 @@ function App() {
                     <Button variant="outline" onPress={addFittings3KRow}>Add fitting row</Button>
                   </div>
                 ) : null}
+              </div>
+
+              <div className="fittings-card">
+                <h4>Saved hydraulics cases</h4>
+                <div className="case-controls">
+                  <label className="field">
+                    <span>Case name</span>
+                    <input
+                      className="field-input"
+                      type="text"
+                      value={hydraulicsCaseName}
+                      onChange={(event) => setHydraulicsCaseName(event.target.value)}
+                    />
+                  </label>
+                  <div className="hydraulics-actions">
+                    <Button variant="outline" onPress={loadHydraulicsCases} isDisabled={isCasesLoading}>
+                      {isCasesLoading ? 'Refreshing...' : 'Refresh list'}
+                    </Button>
+                    <Button variant="outline" onPress={saveHydraulicsCase}>
+                      Save current result
+                    </Button>
+                  </div>
+                </div>
+                {casesError ? <p className="error-text">{casesError}</p> : null}
+                {savedHydraulicsCases.length > 0 ? (
+                  <div className="saved-cases-list">
+                    {savedHydraulicsCases.map((caseEntry) => (
+                      <div key={caseEntry.id} className="saved-case-row">
+                        <div>
+                          <strong>{caseEntry.name}</strong>
+                          <p>{`${caseEntry.model} • ${new Date(caseEntry.created_at).toLocaleString()}`}</p>
+                        </div>
+                        <div className="saved-case-actions">
+                          <Button variant="outline" onPress={() => applyHydraulicsCase(caseEntry.id)}>
+                            Load
+                          </Button>
+                          <Button variant="outline" onPress={() => deleteHydraulicsCase(caseEntry.id)}>
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="settings-summary-secondary">No saved hydraulics cases yet.</p>
+                )}
               </div>
 
               <div className="hydraulics-actions">

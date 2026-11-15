@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from process_design_suite.schemas.hydraulics import (
+    CreateHydraulicsCaseRequest,
     GasPipeHydraulicsHighDPInput,
     GasPipeHydraulicsHighDPResult,
     GasPipeHydraulicsLowDPInput,
     GasPipeHydraulicsLowDPResult,
+    HydraulicsCaseDetail,
+    HydraulicsCaseSummary,
     LiquidPipeHydraulicsInput,
     LiquidPipeHydraulicsResult,
 )
@@ -15,8 +18,9 @@ from process_design_suite.services.hydraulics_service import HydraulicsService
 router = APIRouter(tags=["hydraulics"])
 
 
-def get_hydraulics_service() -> HydraulicsService:
-    return HydraulicsService()
+def get_hydraulics_service(request: Request) -> HydraulicsService:
+    database = getattr(request.app.state, "database", None)
+    return HydraulicsService(database=database)
 
 
 @router.post("/hydraulics/liquid-pipe", response_model=LiquidPipeHydraulicsResult)
@@ -41,3 +45,26 @@ async def calculate_gas_pipe_hydraulics_high_dp(
     service: HydraulicsService = Depends(get_hydraulics_service),
 ) -> GasPipeHydraulicsHighDPResult:
     return service.calculate_gas_pipe_hydraulics_high_dp(payload)
+
+
+@router.get("/hydraulics/cases", response_model=list[HydraulicsCaseSummary])
+async def list_hydraulics_cases(service: HydraulicsService = Depends(get_hydraulics_service)) -> list[HydraulicsCaseSummary]:
+    return service.list_cases()
+
+
+@router.post("/hydraulics/cases", response_model=HydraulicsCaseDetail)
+async def create_hydraulics_case(
+    payload: CreateHydraulicsCaseRequest,
+    service: HydraulicsService = Depends(get_hydraulics_service),
+) -> HydraulicsCaseDetail:
+    return service.create_case(payload)
+
+
+@router.get("/hydraulics/cases/{case_id}", response_model=HydraulicsCaseDetail)
+async def get_hydraulics_case(case_id: int, service: HydraulicsService = Depends(get_hydraulics_service)) -> HydraulicsCaseDetail:
+    return service.get_case(case_id)
+
+
+@router.delete("/hydraulics/cases/{case_id}")
+async def delete_hydraulics_case(case_id: int, service: HydraulicsService = Depends(get_hydraulics_service)) -> dict[str, bool]:
+    return {"deleted": service.delete_case(case_id)}

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -58,6 +59,19 @@ class DatabaseRepository:
                 "INSERT OR IGNORE INTO application_state (key, value) VALUES (?, ?)",
                 ("atmospheric_pressure_kpa", "101.325"),
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS hydraulics_cases (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    inputs_json TEXT NOT NULL,
+                    result_json TEXT NOT NULL,
+                    warnings_json TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
 
     def get_application_state(self, key: str) -> str | None:
         with self.get_connection() as connection:
@@ -76,6 +90,65 @@ class DatabaseRepository:
                 """,
                 (key, value),
             )
+
+    def list_hydraulics_cases(self) -> list[dict[str, Any]]:
+        with self.get_connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, name, model, created_at
+                FROM hydraulics_cases
+                ORDER BY id DESC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def create_hydraulics_case(
+        self,
+        *,
+        name: str,
+        model: str,
+        inputs: dict[str, Any],
+        result: dict[str, Any],
+        warnings: list[str],
+    ) -> int:
+        with self.get_connection() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO hydraulics_cases (name, model, inputs_json, result_json, warnings_json)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    name,
+                    model,
+                    json.dumps(inputs, separators=(",", ":")),
+                    json.dumps(result, separators=(",", ":")),
+                    json.dumps(warnings, separators=(",", ":")),
+                ),
+            )
+            return int(cursor.lastrowid)
+
+    def get_hydraulics_case(self, case_id: int) -> dict[str, Any] | None:
+        with self.get_connection() as connection:
+            row = connection.execute(
+                """
+                SELECT id, name, model, inputs_json, result_json, warnings_json, created_at
+                FROM hydraulics_cases
+                WHERE id = ?
+                """,
+                (case_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = dict(row)
+        payload["inputs"] = json.loads(payload.pop("inputs_json"))
+        payload["result"] = json.loads(payload.pop("result_json"))
+        payload["warnings"] = json.loads(payload.pop("warnings_json"))
+        return payload
+
+    def delete_hydraulics_case(self, case_id: int) -> bool:
+        with self.get_connection() as connection:
+            cursor = connection.execute("DELETE FROM hydraulics_cases WHERE id = ?", (case_id,))
+            return cursor.rowcount > 0
 
     def health_check(self) -> dict[str, Any]:
         try:

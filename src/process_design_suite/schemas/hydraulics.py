@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -160,3 +161,24 @@ class GasPipeHydraulicsHighDPResult(BaseModel):
     available_pressure_drop_pa: float = Field(..., description="Available pressure drop P1-P2 in Pa")
     pressure_drop_margin_pa: float = Field(..., description="Available minus predicted pressure drop in Pa")
     warnings: list[str] = Field(default_factory=list, description="Engineering warnings")
+
+
+class CreateHydraulicsCaseRequest(BaseModel):
+    name: str = Field(..., min_length=1, description="Display name for the saved hydraulics case")
+    model: Literal["liquid", "gas-low-dp", "gas-high-dp"] = Field(..., description="Hydraulics model identifier")
+    inputs: dict[str, Any] = Field(..., description="Input payload used for the calculation")
+    result: dict[str, Any] = Field(..., description="Calculation result payload")
+    warnings: list[str] = Field(default_factory=list, description="Warning list from the run")
+
+
+class HydraulicsCaseSummary(BaseModel):
+    id: int = Field(..., description="Saved hydraulics case identifier")
+    name: str = Field(..., description="Display name for the case")
+    model: Literal["liquid", "gas-low-dp", "gas-high-dp"] = Field(..., description="Hydraulics model identifier")
+    created_at: str = Field(..., description="UTC timestamp when case was saved")
+
+
+class HydraulicsCaseDetail(HydraulicsCaseSummary):
+    inputs: dict[str, Any] = Field(..., description="Input payload used for the calculation")
+    result: dict[str, Any] = Field(..., description="Calculation result payload")
+    warnings: list[str] = Field(default_factory=list, description="Warning list from the run")

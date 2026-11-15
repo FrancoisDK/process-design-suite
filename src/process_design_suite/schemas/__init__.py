@@ -1,9 +1,12 @@
 from process_design_suite.schemas.health import DatabaseHealth, HealthStatusResponse
 from process_design_suite.schemas.hydraulics import (
+    CreateHydraulicsCaseRequest,
     GasPipeHydraulicsHighDPInput,
     GasPipeHydraulicsHighDPResult,
     GasPipeHydraulicsLowDPInput,
     GasPipeHydraulicsLowDPResult,
+    HydraulicsCaseDetail,
+    HydraulicsCaseSummary,
     LiquidPipeHydraulicsInput,
     LiquidPipeHydraulicsResult,
     ThreeKFittingEntry,
@@ -22,4 +25,7 @@ __all__ = [
     "GasPipeHydraulicsLowDPResult",
     "GasPipeHydraulicsHighDPInput",
     "GasPipeHydraulicsHighDPResult",
+    "CreateHydraulicsCaseRequest",
+    "HydraulicsCaseSummary",
+    "HydraulicsCaseDetail",
 ]

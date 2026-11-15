@@ -214,3 +214,37 @@ def test_hydraulics_reference_case_regressions() -> None:
     assert gas_high_dp_result["critical_pressure_ratio"] == pytest.approx(0.5439270375653221, rel=1e-6)
     assert gas_high_dp_result["fittings_k_effective"] == pytest.approx(8.810937743729761, rel=1e-6)
     assert gas_high_dp_result["total_predicted_pressure_drop_pa"] == pytest.approx(358974.0185008176, rel=1e-6)
+
+
+def test_hydraulics_case_crud_endpoints() -> None:
+    app = create_app()
+    client = TestClient(app)
+
+    create_payload = {
+        "name": "Baseline gas low-dP",
+        "model": "gas-low-dp",
+        "inputs": {"mass_flow_kg_s": 0.8, "inside_diameter_m": 0.1},
+        "result": {"mach_number": 0.0644, "total_pressure_drop_pa": 27542.9},
+        "warnings": [],
+    }
+    create_response = client.post("/api/v1/hydraulics/cases", json=create_payload)
+    assert create_response.status_code == 200
+    created = create_response.json()
+    assert created["name"] == create_payload["name"]
+    assert created["model"] == create_payload["model"]
+    case_id = created["id"]
+
+    list_response = client.get("/api/v1/hydraulics/cases")
+    assert list_response.status_code == 200
+    listed = list_response.json()
+    assert any(case["id"] == case_id for case in listed)
+
+    get_response = client.get(f"/api/v1/hydraulics/cases/{case_id}")
+    assert get_response.status_code == 200
+    fetched = get_response.json()
+    assert fetched["inputs"]["mass_flow_kg_s"] == 0.8
+    assert fetched["result"]["mach_number"] == pytest.approx(0.0644)
+
+    delete_response = client.delete(f"/api/v1/hydraulics/cases/{case_id}")
+    assert delete_response.status_code == 200
+    assert delete_response.json()["deleted"] is True
