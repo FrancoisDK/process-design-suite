@@ -7,7 +7,7 @@ The backend now exposes an initial hydraulics endpoint:
 - `POST /api/v1/hydraulics/liquid-pipe`
 - `POST /api/v1/hydraulics/gas-pipe/low-dp`
 - `POST /api/v1/hydraulics/gas-pipe/high-dp`
-- `GET/POST /api/v1/hydraulics/cases` and `GET/DELETE /api/v1/hydraulics/cases/{id}` for saved cases
+- `GET/POST /api/v1/hydraulics/cases` and `GET/PATCH/DELETE /api/v1/hydraulics/cases/{id}` for saved cases
 
 This first slice includes:
 

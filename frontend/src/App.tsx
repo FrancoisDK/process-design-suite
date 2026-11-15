@@ -777,6 +777,34 @@ function App() {
       }
     }
   }
+  const renameHydraulicsCase = async (caseEntry: HydraulicsCaseSummary) => {
+    const nextName = window.prompt('Rename hydraulics case', caseEntry.name)
+    if (nextName === null) {
+      return
+    }
+    const trimmedName = nextName.trim()
+    if (trimmedName.length === 0) {
+      setCasesError('Case name cannot be empty.')
+      return
+    }
+    setCasesError(null)
+    try {
+      const response = await fetch(`/api/v1/hydraulics/cases/${caseEntry.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmedName }),
+      })
+      if (!response.ok) {
+        const payload = (await response.json()) as Record<string, unknown>
+        throw new Error(extractApiErrorMessage(payload, `Case rename failed with ${response.status}`))
+      }
+      await loadHydraulicsCases()
+    } catch (caseError) {
+      if (caseError instanceof Error) {
+        setCasesError(caseError.message)
+      }
+    }
+  }
   const exportHydraulicsCase = async (caseId: number) => {
     setCasesError(null)
     try {
@@ -1504,6 +1532,9 @@ function App() {
                         <div className="saved-case-actions">
                           <Button variant="outline" onPress={() => applyHydraulicsCase(caseEntry.id)}>
                             Load
+                          </Button>
+                          <Button variant="outline" onPress={() => renameHydraulicsCase(caseEntry)}>
+                            Rename
                           </Button>
                           <Button variant="outline" onPress={() => exportHydraulicsCase(caseEntry.id)}>
                             Export

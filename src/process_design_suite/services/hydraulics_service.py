@@ -18,6 +18,7 @@ from process_design_suite.schemas.hydraulics import (
     HydraulicsCaseSummary,
     LiquidPipeHydraulicsInput,
     LiquidPipeHydraulicsResult,
+    UpdateHydraulicsCaseRequest,
 )
 
 
@@ -72,6 +73,16 @@ class HydraulicsService:
         if not deleted:
             raise HTTPException(status_code=404, detail="Hydraulics case not found")
         return True
+
+    def update_case(self, case_id: int, payload: UpdateHydraulicsCaseRequest) -> HydraulicsCaseDetail:
+        database = self._require_database()
+        updated = database.update_hydraulics_case_name(case_id, payload.name)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Hydraulics case not found")
+        case = database.get_hydraulics_case(case_id)
+        if case is None:
+            raise HTTPException(status_code=500, detail="Failed to read updated hydraulics case")
+        return HydraulicsCaseDetail(**case)
 
     def _require_database(self) -> DatabaseRepository:
         if self.database is None:

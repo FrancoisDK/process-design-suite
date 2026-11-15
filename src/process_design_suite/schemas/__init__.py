@@ -10,6 +10,7 @@ from process_design_suite.schemas.hydraulics import (
     LiquidPipeHydraulicsInput,
     LiquidPipeHydraulicsResult,
     ThreeKFittingEntry,
+    UpdateHydraulicsCaseRequest,
 )
 from process_design_suite.schemas.settings import UpdateUserPreferences, UserPreferences
 
@@ -26,6 +27,7 @@ __all__ = [
     "GasPipeHydraulicsHighDPInput",
     "GasPipeHydraulicsHighDPResult",
     "CreateHydraulicsCaseRequest",
+    "UpdateHydraulicsCaseRequest",
     "HydraulicsCaseSummary",
     "HydraulicsCaseDetail",
 ]

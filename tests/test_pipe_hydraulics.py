@@ -245,9 +245,20 @@ def test_hydraulics_case_crud_endpoints() -> None:
     assert fetched["inputs"]["mass_flow_kg_s"] == 0.8
     assert fetched["result"]["mach_number"] == pytest.approx(0.0644)
 
+    rename_response = client.patch(f"/api/v1/hydraulics/cases/{case_id}", json={"name": "Renamed baseline case"})
+    assert rename_response.status_code == 200
+    renamed = rename_response.json()
+    assert renamed["name"] == "Renamed baseline case"
+
+    invalid_rename_response = client.patch(f"/api/v1/hydraulics/cases/{case_id}", json={"name": ""})
+    assert invalid_rename_response.status_code == 422
+
     delete_response = client.delete(f"/api/v1/hydraulics/cases/{case_id}")
     assert delete_response.status_code == 200
     assert delete_response.json()["deleted"] is True
+
+    missing_rename_response = client.patch(f"/api/v1/hydraulics/cases/{case_id}", json={"name": "Will fail"})
+    assert missing_rename_response.status_code == 404
 
     missing_delete_response = client.delete(f"/api/v1/hydraulics/cases/{case_id}")
     assert missing_delete_response.status_code == 404

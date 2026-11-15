@@ -12,6 +12,7 @@ from process_design_suite.schemas.hydraulics import (
     HydraulicsCaseSummary,
     LiquidPipeHydraulicsInput,
     LiquidPipeHydraulicsResult,
+    UpdateHydraulicsCaseRequest,
 )
 from process_design_suite.services.hydraulics_service import HydraulicsService
 
@@ -68,3 +69,12 @@ async def get_hydraulics_case(case_id: int, service: HydraulicsService = Depends
 @router.delete("/hydraulics/cases/{case_id}")
 async def delete_hydraulics_case(case_id: int, service: HydraulicsService = Depends(get_hydraulics_service)) -> dict[str, bool]:
     return {"deleted": service.delete_case(case_id)}
+
+
+@router.patch("/hydraulics/cases/{case_id}", response_model=HydraulicsCaseDetail)
+async def update_hydraulics_case(
+    case_id: int,
+    payload: UpdateHydraulicsCaseRequest,
+    service: HydraulicsService = Depends(get_hydraulics_service),
+) -> HydraulicsCaseDetail:
+    return service.update_case(case_id, payload)

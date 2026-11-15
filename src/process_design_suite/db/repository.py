@@ -150,6 +150,14 @@ class DatabaseRepository:
             cursor = connection.execute("DELETE FROM hydraulics_cases WHERE id = ?", (case_id,))
             return cursor.rowcount > 0
 
+    def update_hydraulics_case_name(self, case_id: int, name: str) -> bool:
+        with self.get_connection() as connection:
+            cursor = connection.execute(
+                "UPDATE hydraulics_cases SET name = ? WHERE id = ?",
+                (name, case_id),
+            )
+            return cursor.rowcount > 0
+
     def health_check(self) -> dict[str, Any]:
         try:
             with self.get_connection() as connection:

@@ -171,6 +171,10 @@ class CreateHydraulicsCaseRequest(BaseModel):
     warnings: list[str] = Field(default_factory=list, description="Warning list from the run")
 
 
+class UpdateHydraulicsCaseRequest(BaseModel):
+    name: str = Field(..., min_length=1, description="Updated display name for the saved hydraulics case")
+
+
 class HydraulicsCaseSummary(BaseModel):
     id: int = Field(..., description="Saved hydraulics case identifier")
     name: str = Field(..., description="Display name for the case")
