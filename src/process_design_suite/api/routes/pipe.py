@@ -16,17 +16,24 @@ def get_pipe_service(request: Request) -> PipeService:
 @router.get("/pipe-catalog", response_model=list[PipeDimension])
 async def get_pipe_catalog(
     nominal_size: str | None = Query(default=None, description="Optional nominal pipe size filter"),
+    dn_size: str | None = Query(default=None, description="Optional DN size filter"),
     schedule: str | None = Query(default=None, description="Optional schedule filter"),
     material: str | None = Query(default=None, description="Optional material filter"),
     service: PipeService = Depends(get_pipe_service),
 ) -> list[PipeDimension]:
-    return service.list_pipe_dimensions(nominal_size=nominal_size, schedule=schedule, material=material)
+    return service.list_pipe_dimensions(
+        nominal_size=nominal_size,
+        dn_size=dn_size,
+        schedule=schedule,
+        material=material,
+    )
 
 
 @router.get("/pipe-catalog/options", response_model=PipeCatalogOptions)
 async def get_pipe_catalog_options(service: PipeService = Depends(get_pipe_service)) -> PipeCatalogOptions:
     return PipeCatalogOptions(
         nominal_sizes=service.nominal_sizes(),
+        dn_sizes=service.dn_sizes(),
         schedules=service.schedules(),
         materials=service.materials(),
     )

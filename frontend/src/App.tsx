@@ -22,6 +22,7 @@ type HealthResponse = {
 type PipeRecord = {
   id: number
   nominal_size: string
+  dn_size: string
   schedule: string
   material: string
   outside_diameter_in: number
@@ -33,6 +34,7 @@ type PipeRecord = {
 
 type PipeCatalogOptions = {
   nominal_sizes: string[]
+  dn_sizes: string[]
   schedules: string[]
   materials: string[]
 }
@@ -79,10 +81,16 @@ const modules = [
 function App() {
   const [activeTab, setActiveTab] = useState<(typeof modules)[number]>('Overview')
   const [health, setHealth] = useState<HealthResponse | null>(null)
-  const [catalogOptions, setCatalogOptions] = useState<PipeCatalogOptions>({ nominal_sizes: [], schedules: [], materials: [] })
+  const [catalogOptions, setCatalogOptions] = useState<PipeCatalogOptions>({
+    nominal_sizes: [],
+    dn_sizes: [],
+    schedules: [],
+    materials: [],
+  })
   const [pipeCatalog, setPipeCatalog] = useState<PipeRecord[]>([])
   const [selectedPipeId, setSelectedPipeId] = useState<number | null>(null)
   const [selectedNominalSize, setSelectedNominalSize] = useState('')
+  const [selectedDnSize, setSelectedDnSize] = useState('')
   const [selectedSchedule, setSelectedSchedule] = useState('')
   const [selectedMaterial, setSelectedMaterial] = useState('')
   const [displayUnit, setDisplayUnit] = useState<DisplayUnit>('mm')
@@ -163,6 +171,7 @@ function App() {
         const payload = (await response.json()) as Partial<PipeCatalogOptions>
         const normalizedOptions: PipeCatalogOptions = {
           nominal_sizes: Array.isArray(payload.nominal_sizes) ? payload.nominal_sizes : [],
+          dn_sizes: Array.isArray(payload.dn_sizes) ? payload.dn_sizes : [],
           schedules: Array.isArray(payload.schedules) ? payload.schedules : [],
           materials: Array.isArray(payload.materials) ? payload.materials : [],
         }
@@ -170,6 +179,7 @@ function App() {
         setCatalogOptions(normalizedOptions)
         const searchParams = new URLSearchParams(window.location.search)
         const urlNominal = searchParams.get('nominal_size')
+        const urlDn = searchParams.get('dn_size')
         const urlSchedule = searchParams.get('schedule')
         const urlMaterial = searchParams.get('material')
         const urlUnit = searchParams.get('unit')
@@ -185,6 +195,7 @@ function App() {
 
         const initialNominal =
           urlNominal && normalizedOptions.nominal_sizes.includes(urlNominal) ? urlNominal : ALL_FILTER_OPTION
+        const initialDn = urlDn && normalizedOptions.dn_sizes.includes(urlDn) ? urlDn : ALL_FILTER_OPTION
         const initialSchedule =
           urlSchedule && normalizedOptions.schedules.includes(urlSchedule) ? urlSchedule : ALL_FILTER_OPTION
         const initialMaterial =
@@ -235,6 +246,7 @@ function App() {
             : matchedProfile.id
 
         setSelectedNominalSize((current) => current || initialNominal)
+        setSelectedDnSize((current) => current || initialDn)
         setSelectedSchedule((current) => current || initialSchedule)
         setSelectedMaterial((current) => current || initialMaterial)
         setDisplayUnit(initialUnit)
@@ -259,7 +271,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (!selectedNominalSize || !selectedSchedule || !selectedMaterial) {
+    if (!selectedNominalSize || !selectedDnSize || !selectedSchedule || !selectedMaterial) {
       return
     }
 
@@ -270,6 +282,9 @@ function App() {
         const params = new URLSearchParams()
         if (selectedNominalSize !== ALL_FILTER_OPTION) {
           params.set('nominal_size', selectedNominalSize)
+        }
+        if (selectedDnSize !== ALL_FILTER_OPTION) {
+          params.set('dn_size', selectedDnSize)
         }
         if (selectedSchedule !== ALL_FILTER_OPTION) {
           params.set('schedule', selectedSchedule)
@@ -333,16 +348,19 @@ function App() {
     void loadPipes()
 
     return () => controller.abort()
-  }, [selectedNominalSize, selectedSchedule, selectedMaterial, catalogRefreshKey])
+  }, [selectedNominalSize, selectedDnSize, selectedSchedule, selectedMaterial, catalogRefreshKey])
 
   useEffect(() => {
-    if (!selectedNominalSize || !selectedSchedule || !selectedMaterial) {
+    if (!selectedNominalSize || !selectedDnSize || !selectedSchedule || !selectedMaterial) {
       return
     }
 
     const params = new URLSearchParams()
     if (selectedNominalSize !== ALL_FILTER_OPTION) {
       params.set('nominal_size', selectedNominalSize)
+    }
+    if (selectedDnSize !== ALL_FILTER_OPTION) {
+      params.set('dn_size', selectedDnSize)
     }
     if (selectedSchedule !== ALL_FILTER_OPTION) {
       params.set('schedule', selectedSchedule)
@@ -369,7 +387,17 @@ function App() {
     const query = params.toString()
     const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`
     window.history.replaceState(null, '', nextUrl)
-  }, [selectedNominalSize, selectedSchedule, selectedMaterial, displayUnit, decimalPlaces, pressureUnit, pressureProfileId, atmosphericPressureKpa])
+  }, [
+    selectedNominalSize,
+    selectedDnSize,
+    selectedSchedule,
+    selectedMaterial,
+    displayUnit,
+    decimalPlaces,
+    pressureUnit,
+    pressureProfileId,
+    atmosphericPressureKpa,
+  ])
 
   useEffect(() => {
     window.localStorage.setItem(DISPLAY_UNIT_STORAGE_KEY, displayUnit)
@@ -426,6 +454,7 @@ function App() {
   const backendStatus = health ? (health.status === 'ok' ? 'Healthy' : 'Degraded') : 'Checking...'
   const selectedRecord = pipeCatalog.find((pipe) => pipe.id === selectedPipeId) ?? pipeCatalog[0] ?? null
   const nominalSizeOptions = [ALL_FILTER_OPTION, ...catalogOptions.nominal_sizes]
+  const dnSizeOptions = [ALL_FILTER_OPTION, ...catalogOptions.dn_sizes]
   const scheduleOptions = [ALL_FILTER_OPTION, ...catalogOptions.schedules]
   const materialOptions = [ALL_FILTER_OPTION, ...catalogOptions.materials]
   const lengthUnitLabel = displayUnit === 'mm' ? 'mm' : 'in'
@@ -453,6 +482,7 @@ function App() {
   }
   const resetFilters = () => {
     setSelectedNominalSize(ALL_FILTER_OPTION)
+    setSelectedDnSize(ALL_FILTER_OPTION)
     setSelectedSchedule(ALL_FILTER_OPTION)
     setSelectedMaterial(ALL_FILTER_OPTION)
   }
@@ -721,7 +751,7 @@ function App() {
             <Card.Content>
               <ul className="scope-list">
                 <li>Pipe dimension catalog</li>
-                <li>Nominal size and schedule selection</li>
+                <li>NPS, DN, and schedule selection</li>
                 <li>SQLite-backed repository</li>
                 <li>Typed pipe schema</li>
                 <li>API catalog endpoint</li>
@@ -748,6 +778,17 @@ function App() {
                 <span>Nominal size</span>
                 <select value={selectedNominalSize} onChange={(event) => setSelectedNominalSize(event.target.value)}>
                   {nominalSizeOptions.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field">
+                <span>DN size</span>
+                <select value={selectedDnSize} onChange={(event) => setSelectedDnSize(event.target.value)}>
+                  {dnSizeOptions.map((size) => (
                     <option key={size} value={size}>
                       {size}
                     </option>
@@ -835,6 +876,7 @@ function App() {
                 <thead>
                   <tr>
                     <th>Nominal</th>
+                    <th>DN</th>
                     <th>Schedule</th>
                     <th>Material</th>
                     <th>{`OD (${lengthUnitLabel})`}</th>
@@ -846,7 +888,7 @@ function App() {
                 <tbody>
                   {isCatalogLoading ? (
                     <tr>
-                      <td colSpan={7}>Loading pipe records...</td>
+                      <td colSpan={8}>Loading pipe records...</td>
                     </tr>
                   ) : pipeCatalog.length > 0 ? (
                     pipeCatalog.map((pipe) => (
@@ -885,9 +927,10 @@ function App() {
                         }}
                         tabIndex={0}
                         aria-selected={pipe.id === selectedRecord?.id}
-                        aria-label={`Select ${pipe.nominal_size} schedule ${pipe.schedule} ${pipe.material}`}
+                        aria-label={`Select ${pipe.nominal_size} (${pipe.dn_size}) schedule ${pipe.schedule} ${pipe.material}`}
                       >
                         <td>{pipe.nominal_size}</td>
+                        <td>{pipe.dn_size}</td>
                         <td>{pipe.schedule}</td>
                         <td>{pipe.material}</td>
                         <td>{formatLength(pipe.outside_diameter_in)}</td>
@@ -898,7 +941,7 @@ function App() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7}>No pipe records match the selected filters.</td>
+                      <td colSpan={8}>No pipe records match the selected filters.</td>
                     </tr>
                   )}
                 </tbody>

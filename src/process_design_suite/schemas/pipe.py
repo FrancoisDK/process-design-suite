@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class PipeDimension(BaseModel):
     id: int = Field(..., description="Internal unique record id for the pipe size entry")
     nominal_size: str = Field(..., description="Nominal pipe size using inches or DN notation")
+    dn_size: str = Field(..., description="Nominal diameter designation (DN)")
     schedule: str = Field(..., description="Pipe schedule designation")
     material: str = Field(..., description="Material family for the nominal dimension")
     outside_diameter_in: float = Field(..., description="Outside diameter in inches")
@@ -17,5 +18,6 @@ class PipeDimension(BaseModel):
 
 class PipeCatalogOptions(BaseModel):
     nominal_sizes: list[str] = Field(..., description="Available nominal size options from the catalog")
+    dn_sizes: list[str] = Field(..., description="Available DN options from the catalog")
     schedules: list[str] = Field(..., description="Available schedule options from the catalog")
     materials: list[str] = Field(..., description="Available material options from the catalog")

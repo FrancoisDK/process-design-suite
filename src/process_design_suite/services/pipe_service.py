@@ -9,12 +9,24 @@ class PipeService:
         self.database = database or PipeDatabaseRepository()
 
     def list_pipe_dimensions(
-        self, nominal_size: str | None = None, schedule: str | None = None, material: str | None = None
+        self,
+        nominal_size: str | None = None,
+        dn_size: str | None = None,
+        schedule: str | None = None,
+        material: str | None = None,
     ) -> list[PipeDimension]:
-        return self.database.list_dimensions(nominal_size=nominal_size, schedule=schedule, material=material)
+        return self.database.list_dimensions(
+            nominal_size=nominal_size,
+            dn_size=dn_size,
+            schedule=schedule,
+            material=material,
+        )
 
     def nominal_sizes(self) -> list[str]:
         return self.database.unique_nominal_sizes()
+
+    def dn_sizes(self) -> list[str]:
+        return self.database.unique_dn_sizes()
 
     def schedules(self) -> list[str]:
         return self.database.unique_schedules()

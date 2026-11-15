@@ -28,6 +28,20 @@ DEFAULT_PIPE_CATALOG: list[dict[str, object]] = [
     {"nominal_size": "6 in", "schedule": "80", "material": "Carbon steel", "outside_diameter_in": 6.625, "wall_thickness_in": 0.432, "inside_diameter_in": 5.761, "roughness_mm": 0.045, "standard": "Nominal reference catalog"},
 ]
 
+DN_BY_NOMINAL_SIZE: dict[str, str] = {
+    "1/2 in": "DN15",
+    "3/4 in": "DN20",
+    "1 in": "DN25",
+    "1.5 in": "DN40",
+    "2 in": "DN50",
+    "3 in": "DN80",
+    "4 in": "DN100",
+    "6 in": "DN150",
+    "8 in": "DN200",
+    "10 in": "DN250",
+    "12 in": "DN300",
+}
+
 
 class PipeDatabaseRepository(DatabaseRepository):
     def __init__(self, database_path: str | Path | None = None) -> None:
@@ -42,6 +56,7 @@ class PipeDatabaseRepository(DatabaseRepository):
                 CREATE TABLE pipe_dimensions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     nominal_size TEXT NOT NULL,
+                    dn_size TEXT NOT NULL,
                     schedule TEXT NOT NULL,
                     material TEXT NOT NULL,
                     outside_diameter_in REAL NOT NULL,
@@ -53,13 +68,16 @@ class PipeDatabaseRepository(DatabaseRepository):
                 """
             )
             connection.execute(
-                "CREATE UNIQUE INDEX idx_pipe_dimensions_unique ON pipe_dimensions (nominal_size, schedule, material, outside_diameter_in, wall_thickness_in, inside_diameter_in, roughness_mm, standard)"
+                "CREATE UNIQUE INDEX idx_pipe_dimensions_unique ON pipe_dimensions (nominal_size, dn_size, schedule, material, outside_diameter_in, wall_thickness_in, inside_diameter_in, roughness_mm, standard)"
             )
             for pipe in DEFAULT_PIPE_CATALOG:
+                nominal_size = str(pipe["nominal_size"])
+                dn_size = DN_BY_NOMINAL_SIZE[nominal_size]
                 connection.execute(
                     """
                     INSERT OR IGNORE INTO pipe_dimensions (
                         nominal_size,
+                        dn_size,
                         schedule,
                         material,
                         outside_diameter_in,
@@ -67,10 +85,11 @@ class PipeDatabaseRepository(DatabaseRepository):
                         inside_diameter_in,
                         roughness_mm,
                         standard
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        pipe["nominal_size"],
+                        nominal_size,
+                        dn_size,
                         pipe["schedule"],
                         pipe["material"],
                         pipe["outside_diameter_in"],
@@ -82,13 +101,20 @@ class PipeDatabaseRepository(DatabaseRepository):
                 )
 
     def list_dimensions(
-        self, nominal_size: str | None = None, schedule: str | None = None, material: str | None = None
+        self,
+        nominal_size: str | None = None,
+        dn_size: str | None = None,
+        schedule: str | None = None,
+        material: str | None = None,
     ) -> list[PipeDimension]:
         query = "SELECT * FROM pipe_dimensions WHERE 1 = 1"
         params: list[object] = []
         if nominal_size:
             query += " AND nominal_size = ?"
             params.append(nominal_size)
+        if dn_size:
+            query += " AND dn_size = ?"
+            params.append(dn_size)
         if schedule:
             query += " AND schedule = ?"
             params.append(schedule)
@@ -104,6 +130,7 @@ class PipeDatabaseRepository(DatabaseRepository):
             PipeDimension(
                 id=row["id"],
                 nominal_size=row["nominal_size"],
+                dn_size=row["dn_size"],
                 schedule=row["schedule"],
                 material=row["material"],
                 outside_diameter_in=float(row["outside_diameter_in"]),
@@ -127,6 +154,12 @@ class PipeDatabaseRepository(DatabaseRepository):
             rows = connection.execute("SELECT DISTINCT schedule FROM pipe_dimensions ORDER BY schedule").fetchall()
         return [row[0] for row in rows]
 
+    def unique_dn_sizes(self) -> list[str]:
+        with self.get_connection() as connection:
+            rows = connection.execute("SELECT DISTINCT dn_size FROM pipe_dimensions").fetchall()
+        sizes = [row[0] for row in rows]
+        return sorted(sizes, key=self._dn_size_key)
+
     def unique_materials(self) -> list[str]:
         with self.get_connection() as connection:
             rows = connection.execute("SELECT DISTINCT material FROM pipe_dimensions ORDER BY material").fetchall()
@@ -139,3 +172,11 @@ class PipeDatabaseRepository(DatabaseRepository):
             return float(Fraction(numeric))
         except (ValueError, ZeroDivisionError):
             return float("inf")
+
+    @staticmethod
+    def _dn_size_key(value: str) -> int:
+        numeric = value.replace("DN", "").strip()
+        try:
+            return int(numeric)
+        except ValueError:
+            return 999999
