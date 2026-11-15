@@ -767,6 +767,49 @@ function App() {
       }
     }
   }
+  const findInvalidNumberPath = (value: unknown, path: string): string | null => {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? null : path
+    }
+    if (Array.isArray(value)) {
+      for (let index = 0; index < value.length; index += 1) {
+        const nested = findInvalidNumberPath(value[index], `${path}[${index}]`)
+        if (nested) {
+          return nested
+        }
+      }
+      return null
+    }
+    if (typeof value === 'object' && value !== null) {
+      for (const [key, nestedValue] of Object.entries(value)) {
+        const nested = findInvalidNumberPath(nestedValue, `${path}.${key}`)
+        if (nested) {
+          return nested
+        }
+      }
+    }
+    return null
+  }
+  const extractApiErrorMessage = (responsePayload: Record<string, unknown>, fallback: string) => {
+    const detail = responsePayload.detail
+    if (typeof detail === 'string') {
+      return detail
+    }
+    if (Array.isArray(detail)) {
+      const messages = detail
+        .map((item) => {
+          if (typeof item === 'object' && item !== null && 'msg' in item && typeof item.msg === 'string') {
+            return item.msg
+          }
+          return null
+        })
+        .filter((item): item is string => item !== null)
+      if (messages.length > 0) {
+        return messages.join('; ')
+      }
+    }
+    return fallback
+  }
 
   const submitHydraulicsCalculation = async () => {
     setIsHydraulicsLoading(true)
@@ -835,6 +878,10 @@ function App() {
         }
       }
       setHydraulicsInputPayload(payload)
+      const invalidNumberPath = findInvalidNumberPath(payload, 'payload')
+      if (invalidNumberPath) {
+        throw new Error(`Invalid numeric input at ${invalidNumberPath}.`)
+      }
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -843,7 +890,7 @@ function App() {
       })
       const responsePayload = (await response.json()) as Record<string, unknown>
       if (!response.ok) {
-        const detail = typeof responsePayload.detail === 'string' ? responsePayload.detail : `Request failed with ${response.status}`
+        const detail = extractApiErrorMessage(responsePayload, `Request failed with ${response.status}`)
         throw new Error(detail)
       }
       setHydraulicsResult(responsePayload)

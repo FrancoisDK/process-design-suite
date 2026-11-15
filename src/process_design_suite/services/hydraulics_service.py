@@ -68,7 +68,10 @@ class HydraulicsService:
 
     def delete_case(self, case_id: int) -> bool:
         database = self._require_database()
-        return database.delete_hydraulics_case(case_id)
+        deleted = database.delete_hydraulics_case(case_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Hydraulics case not found")
+        return True
 
     def _require_database(self) -> DatabaseRepository:
         if self.database is None:

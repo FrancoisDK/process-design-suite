@@ -248,3 +248,6 @@ def test_hydraulics_case_crud_endpoints() -> None:
     delete_response = client.delete(f"/api/v1/hydraulics/cases/{case_id}")
     assert delete_response.status_code == 200
     assert delete_response.json()["deleted"] is True
+
+    missing_delete_response = client.delete(f"/api/v1/hydraulics/cases/{case_id}")
+    assert missing_delete_response.status_code == 404
