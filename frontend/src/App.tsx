@@ -44,6 +44,14 @@ type DecimalPlaces = 2 | 3 | 4
 type PressureUnit = 'kPa' | 'bar' | 'psia'
 type PressureProfileId = 'sea-level' | '500m' | '1000m' | '1500m' | '2000m' | 'custom'
 type HydraulicsModel = 'liquid' | 'gas-low-dp' | 'gas-high-dp'
+type FittingsMethod = 'none' | 'k_total' | '3k'
+type Fittings3KRow = {
+  name: string
+  quantity: string
+  k1: string
+  k_inf: string
+  k_d: string
+}
 
 const ALL_FILTER_OPTION = 'All'
 const INCH_TO_MM = 25.4
@@ -112,6 +120,12 @@ function App() {
   const [hydraulicsError, setHydraulicsError] = useState<string | null>(null)
   const [hydraulicsResult, setHydraulicsResult] = useState<Record<string, unknown> | null>(null)
   const [hydraulicsWarnings, setHydraulicsWarnings] = useState<string[]>([])
+  const [includeFittings, setIncludeFittings] = useState(false)
+  const [fittingsMethod, setFittingsMethod] = useState<FittingsMethod>('none')
+  const [fittingsKTotal, setFittingsKTotal] = useState('2.5')
+  const [fittings3KRows, setFittings3KRows] = useState<Fittings3KRow[]>([
+    { name: '90 elbow LR', quantity: '2', k1: '800', k_inf: '0.25', k_d: '3.9' },
+  ])
   const [liquidInputs, setLiquidInputs] = useState({
     volumetric_flow_m3_s: '0.01',
     inside_diameter_m: '0.0525',
@@ -554,6 +568,57 @@ function App() {
   const updateGasHighDpInput = (field: keyof typeof gasHighDpInputs, value: string) => {
     setGasHighDpInputs((current) => ({ ...current, [field]: value }))
   }
+  const updateFittings3KRow = (index: number, field: keyof Fittings3KRow, value: string) => {
+    setFittings3KRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)))
+  }
+  const addFittings3KRow = () => {
+    setFittings3KRows((current) => [...current, { name: 'New fitting', quantity: '1', k1: '100', k_inf: '0.2', k_d: '1.0' }])
+  }
+  const removeFittings3KRow = (index: number) => {
+    setFittings3KRows((current) => current.filter((_, rowIndex) => rowIndex !== index))
+  }
+  const applyHydraulicsPreset = (preset: HydraulicsModel) => {
+    setHydraulicsModel(preset)
+    if (preset === 'liquid') {
+      setLiquidInputs({
+        volumetric_flow_m3_s: '0.01',
+        inside_diameter_m: '0.0525',
+        pipe_length_m: '120',
+        fluid_density_kg_m3: '998',
+        dynamic_viscosity_pa_s: '0.001',
+        absolute_roughness_m: '0.000045',
+        elevation_change_m: '0',
+        inlet_pressure_pa: '300000',
+      })
+    } else if (preset === 'gas-low-dp') {
+      setGasLowDpInputs({
+        mass_flow_kg_s: '0.8',
+        inside_diameter_m: '0.1',
+        pipe_length_m: '100',
+        inlet_pressure_pa: '500000',
+        gas_temperature_k: '300',
+        molecular_weight_kg_kmol: '18',
+        compressibility_factor: '0.98',
+        heat_capacity_ratio: '1.33',
+        dynamic_viscosity_pa_s: '0.000012',
+        absolute_roughness_m: '0.000045',
+      })
+    } else {
+      setGasHighDpInputs({
+        mass_flow_kg_s: '1.2',
+        inside_diameter_m: '0.08',
+        pipe_length_m: '150',
+        upstream_pressure_pa: '900000',
+        downstream_pressure_pa: '350000',
+        gas_temperature_k: '310',
+        molecular_weight_kg_kmol: '20',
+        compressibility_factor: '0.95',
+        heat_capacity_ratio: '1.31',
+        dynamic_viscosity_pa_s: '0.000015',
+        absolute_roughness_m: '0.000045',
+      })
+    }
+  }
 
   const submitHydraulicsCalculation = async () => {
     setIsHydraulicsLoading(true)
@@ -561,6 +626,21 @@ function App() {
     try {
       let endpoint = '/api/v1/hydraulics/liquid-pipe'
       let payload: Record<string, unknown> = {}
+      const resolvedFittingsMethod: FittingsMethod = includeFittings ? fittingsMethod : 'none'
+      const commonFittingsPayload: Record<string, unknown> = {
+        include_fittings: includeFittings,
+        fittings_method: resolvedFittingsMethod,
+        fittings_k_total: resolvedFittingsMethod === 'k_total' ? Number(fittingsKTotal) : 0,
+      }
+      if (resolvedFittingsMethod === '3k') {
+        commonFittingsPayload.fittings_3k = fittings3KRows.map((row) => ({
+          name: row.name,
+          quantity: Number(row.quantity),
+          k1: Number(row.k1),
+          k_inf: Number(row.k_inf),
+          k_d: Number(row.k_d),
+        }))
+      }
 
       if (hydraulicsModel === 'liquid') {
         payload = {
@@ -572,9 +652,7 @@ function App() {
           absolute_roughness_m: Number(liquidInputs.absolute_roughness_m),
           elevation_change_m: Number(liquidInputs.elevation_change_m),
           inlet_pressure_pa: Number(liquidInputs.inlet_pressure_pa),
-          include_fittings: false,
-          fittings_method: 'none',
-          fittings_k_total: 0,
+          ...commonFittingsPayload,
         }
       } else if (hydraulicsModel === 'gas-low-dp') {
         endpoint = '/api/v1/hydraulics/gas-pipe/low-dp'
@@ -589,9 +667,7 @@ function App() {
           heat_capacity_ratio: Number(gasLowDpInputs.heat_capacity_ratio),
           dynamic_viscosity_pa_s: Number(gasLowDpInputs.dynamic_viscosity_pa_s),
           absolute_roughness_m: Number(gasLowDpInputs.absolute_roughness_m),
-          include_fittings: false,
-          fittings_method: 'none',
-          fittings_k_total: 0,
+          ...commonFittingsPayload,
         }
       } else {
         endpoint = '/api/v1/hydraulics/gas-pipe/high-dp'
@@ -607,9 +683,7 @@ function App() {
           heat_capacity_ratio: Number(gasHighDpInputs.heat_capacity_ratio),
           dynamic_viscosity_pa_s: Number(gasHighDpInputs.dynamic_viscosity_pa_s),
           absolute_roughness_m: Number(gasHighDpInputs.absolute_roughness_m),
-          include_fittings: false,
-          fittings_method: 'none',
-          fittings_k_total: 0,
+          ...commonFittingsPayload,
         }
       }
 
@@ -645,6 +719,30 @@ function App() {
       return value ? 'Yes' : 'No'
     }
     return String(value)
+  }
+  const hydraulicsFieldMeta: Record<string, { label: string; unit?: string }> = {
+    velocity_m_s: { label: 'Velocity', unit: 'm/s' },
+    velocity_inlet_m_s: { label: 'Velocity (inlet)', unit: 'm/s' },
+    velocity_outlet_m_s: { label: 'Velocity (outlet)', unit: 'm/s' },
+    reynolds_number: { label: 'Reynolds number' },
+    friction_factor: { label: 'Darcy friction factor' },
+    straight_pipe_pressure_drop_pa: { label: 'Straight-pipe pressure drop', unit: 'Pa' },
+    fittings_pressure_drop_pa: { label: 'Fittings pressure drop', unit: 'Pa' },
+    total_pressure_drop_pa: { label: 'Total pressure drop', unit: 'Pa' },
+    total_predicted_pressure_drop_pa: { label: 'Total predicted pressure drop', unit: 'Pa' },
+    available_pressure_drop_pa: { label: 'Available pressure drop', unit: 'Pa' },
+    pressure_drop_margin_pa: { label: 'Pressure drop margin', unit: 'Pa' },
+    outlet_pressure_pa: { label: 'Outlet pressure', unit: 'Pa(abs)' },
+    inlet_density_kg_m3: { label: 'Inlet density', unit: 'kg/m³' },
+    outlet_density_kg_m3: { label: 'Outlet density', unit: 'kg/m³' },
+    mach_number: { label: 'Mach number' },
+    mach_inlet: { label: 'Mach number (inlet)' },
+    mach_outlet: { label: 'Mach number (outlet)' },
+    pressure_ratio: { label: 'Pressure ratio P2/P1' },
+    critical_pressure_ratio: { label: 'Critical pressure ratio' },
+    choked_flow_expected: { label: 'Choked flow expected' },
+    fittings_k_effective: { label: 'Effective fittings K' },
+    elevation_pressure_drop_pa: { label: 'Elevation pressure drop', unit: 'Pa' },
   }
   const hydraulicsResultEntries = hydraulicsResult
     ? Object.entries(hydraulicsResult).filter(([key, value]) => key !== 'warnings' && typeof value !== 'object')
@@ -867,6 +965,11 @@ function App() {
                   </select>
                 </label>
               </div>
+              <div className="hydraulics-presets">
+                <Button variant="outline" onPress={() => applyHydraulicsPreset('liquid')}>Liquid preset</Button>
+                <Button variant="outline" onPress={() => applyHydraulicsPreset('gas-low-dp')}>Gas low-ΔP preset</Button>
+                <Button variant="outline" onPress={() => applyHydraulicsPreset('gas-high-dp')}>Gas high-ΔP preset</Button>
+              </div>
 
               {hydraulicsModel === 'liquid' ? (
                 <div className="hydraulics-grid">
@@ -999,6 +1102,47 @@ function App() {
                 </div>
               ) : null}
 
+              <div className="fittings-card">
+                <h4>Fittings configuration</h4>
+                <div className="hydraulics-grid">
+                  <label className="field checkbox-field">
+                    <span>Include fittings losses</span>
+                    <input type="checkbox" checked={includeFittings} onChange={(event) => setIncludeFittings(event.target.checked)} />
+                  </label>
+                  <label className="field">
+                    <span>Fittings method</span>
+                    <select value={fittingsMethod} onChange={(event) => setFittingsMethod(event.target.value as FittingsMethod)} disabled={!includeFittings}>
+                      <option value="none">none</option>
+                      <option value="k_total">k_total</option>
+                      <option value="3k">3k</option>
+                    </select>
+                  </label>
+                  {includeFittings && fittingsMethod === 'k_total' ? (
+                    <label className="field">
+                      <span>Total K</span>
+                      <input className="field-input" type="number" step="0.01" value={fittingsKTotal} onChange={(event) => setFittingsKTotal(event.target.value)} />
+                    </label>
+                  ) : null}
+                </div>
+                {includeFittings && fittingsMethod === '3k' ? (
+                  <div className="fittings-3k-section">
+                    {fittings3KRows.map((row, index) => (
+                      <div key={`${row.name}-${index}`} className="fittings-3k-row">
+                        <input className="field-input" type="text" value={row.name} onChange={(event) => updateFittings3KRow(index, 'name', event.target.value)} />
+                        <input className="field-input" type="number" step="1" min="1" value={row.quantity} onChange={(event) => updateFittings3KRow(index, 'quantity', event.target.value)} />
+                        <input className="field-input" type="number" step="0.1" value={row.k1} onChange={(event) => updateFittings3KRow(index, 'k1', event.target.value)} />
+                        <input className="field-input" type="number" step="0.001" value={row.k_inf} onChange={(event) => updateFittings3KRow(index, 'k_inf', event.target.value)} />
+                        <input className="field-input" type="number" step="0.001" value={row.k_d} onChange={(event) => updateFittings3KRow(index, 'k_d', event.target.value)} />
+                        <Button variant="outline" onPress={() => removeFittings3KRow(index)} isDisabled={fittings3KRows.length === 1}>
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                    <Button variant="outline" onPress={addFittings3KRow}>Add fitting row</Button>
+                  </div>
+                ) : null}
+              </div>
+
               <div className="hydraulics-actions">
                 <Button variant="primary" onPress={submitHydraulicsCalculation} isDisabled={isHydraulicsLoading}>
                   {isHydraulicsLoading ? 'Running...' : 'Run calculation'}
@@ -1022,8 +1166,11 @@ function App() {
                 <div className="hydraulics-result-grid">
                   {hydraulicsResultEntries.map(([key, value]) => (
                     <div key={key} className="hydraulics-result-item">
-                      <span>{key}</span>
-                      <strong>{formatHydraulicsValue(value)}</strong>
+                      <span>{hydraulicsFieldMeta[key]?.label ?? key}</span>
+                      <strong>
+                        {formatHydraulicsValue(value)}
+                        {hydraulicsFieldMeta[key]?.unit && typeof value !== 'boolean' ? ` ${hydraulicsFieldMeta[key].unit}` : ''}
+                      </strong>
                     </div>
                   ))}
                 </div>
