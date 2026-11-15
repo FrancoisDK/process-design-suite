@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Databases / runtime artifacts
+*.db
+*.sqlite3
+
+# OS / editor
+.DS_Store
+Thumbs.db
