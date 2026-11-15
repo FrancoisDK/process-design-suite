@@ -1,7 +1,12 @@
 from process_design_suite.schemas.health import DatabaseHealth, HealthStatusResponse
 from process_design_suite.schemas.hydraulics import (
+    GasPipeHydraulicsHighDPInput,
+    GasPipeHydraulicsHighDPResult,
+    GasPipeHydraulicsLowDPInput,
+    GasPipeHydraulicsLowDPResult,
     LiquidPipeHydraulicsInput,
     LiquidPipeHydraulicsResult,
+    ThreeKFittingEntry,
 )
 from process_design_suite.schemas.settings import UpdateUserPreferences, UserPreferences
 
@@ -10,6 +15,11 @@ __all__ = [
     "HealthStatusResponse",
     "UserPreferences",
     "UpdateUserPreferences",
+    "ThreeKFittingEntry",
     "LiquidPipeHydraulicsInput",
     "LiquidPipeHydraulicsResult",
+    "GasPipeHydraulicsLowDPInput",
+    "GasPipeHydraulicsLowDPResult",
+    "GasPipeHydraulicsHighDPInput",
+    "GasPipeHydraulicsHighDPResult",
 ]

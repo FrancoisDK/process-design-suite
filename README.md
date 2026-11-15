@@ -5,6 +5,8 @@
 The backend now exposes an initial hydraulics endpoint:
 
 - `POST /api/v1/hydraulics/liquid-pipe`
+- `POST /api/v1/hydraulics/gas-pipe/low-dp`
+- `POST /api/v1/hydraulics/gas-pipe/high-dp`
 
 This first slice includes:
 
@@ -14,3 +16,6 @@ This first slice includes:
 - Darby 3K fittings support (`fittings_method: "3k"`) with per-fitting entries:
   - `k1`, `k_inf`, `k_d`, and `quantity`
   - effective K calculated as `K = k1/Re + k_inf * (1 + k_d / D_in^0.3)`
+- gas hydraulics split into:
+  - low-ΔP model for moderate compressibility effects
+  - high-ΔP/high-Mach screening model with critical-pressure-ratio choking check
